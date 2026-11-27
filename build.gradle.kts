@@ -18,13 +18,14 @@ plugins {
     alias(libs.plugins.android.library) apply false
     alias(libs.plugins.detekt) apply false
     alias(libs.plugins.kotlin.compose) apply false
+    alias(libs.plugins.kotlin.jvm) apply false
     alias(libs.plugins.kover) apply false
     alias(libs.plugins.ksp) apply false
     alias(libs.plugins.room) apply false
 }
 
 /**
- * Fails when :sdk and :sdk-no-op expose different public APIs, so host code that compiles
+ * Fails when :cabitools-sdk-application and :cabitools-sdk-application-no-op expose different public APIs, so host code that compiles
  * against one always compiles against the other. `internal` declarations are ignored.
  */
 @CacheableTask
@@ -45,16 +46,16 @@ abstract class CheckNoOpApiTask : DefaultTask() {
         val sdkApi = publicApi(sdkClasses)
         val noOpApi = publicApi(noOpClasses)
         val dir = reportDir.get().asFile
-        dir.resolve("sdk.api").writeText(sdkApi)
-        dir.resolve("sdk-no-op.api").writeText(noOpApi)
+        dir.resolve("application.api").writeText(sdkApi)
+        dir.resolve("application-no-op.api").writeText(noOpApi)
         if (sdkApi != noOpApi) {
             val sdkLines = sdkApi.lines().toSet()
             val noOpLines = noOpApi.lines().toSet()
             val onlySdk = (sdkLines - noOpLines).joinToString("\n") { "  - $it" }
             val onlyNoOp = (noOpLines - sdkLines).joinToString("\n") { "  + $it" }
             throw GradleException(
-                "Public APIs of :sdk and :sdk-no-op differ (dumps in $dir).\n" +
-                    "Only in :sdk:\n$onlySdk\nOnly in :sdk-no-op:\n$onlyNoOp",
+                "Public APIs of :cabitools-sdk-application and :cabitools-sdk-application-no-op differ (dumps in $dir).\n" +
+                    "Only in :cabitools-sdk-application:\n$onlySdk\nOnly in :cabitools-sdk-application-no-op:\n$onlyNoOp",
             )
         }
     }
@@ -68,7 +69,7 @@ abstract class CheckNoOpApiTask : DefaultTask() {
             .dump(StringBuilder())
             .toString()
         // The Compose compiler adds public-looking members that no host code can use:
-        // ComposableSingletons classes and `$stable` fields. :sdk-no-op has no Compose.
+        // ComposableSingletons classes and `$stable` fields. :cabitools-sdk-application-no-op has no Compose.
         return dump.trim().split("\n\n")
             .filterNot { it.contains("ComposableSingletons") }
             .joinToString("\n\n") { block -> block.lines().filterNot { "field \$stable" in it }.joinToString("\n") }
@@ -77,8 +78,8 @@ abstract class CheckNoOpApiTask : DefaultTask() {
 
 tasks.register<CheckNoOpApiTask>("checkNoOpApi") {
     group = "verification"
-    description = "Checks that :sdk and :sdk-no-op have the same public API."
-    sdkClasses.from(provider { project(":sdk").tasks.named("compileDebugKotlin").get().outputs.files })
-    noOpClasses.from(provider { project(":sdk-no-op").tasks.named("compileDebugKotlin").get().outputs.files })
+    description = "Checks that :cabitools-sdk-application and :cabitools-sdk-application-no-op have the same public API."
+    sdkClasses.from(provider { project(":cabitools-sdk-application").tasks.named("compileDebugKotlin").get().outputs.files })
+    noOpClasses.from(provider { project(":cabitools-sdk-application-no-op").tasks.named("compileDebugKotlin").get().outputs.files })
     reportDir.set(layout.buildDirectory.dir("reports/noOpApi"))
 }

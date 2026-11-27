@@ -33,13 +33,13 @@ jobs:
       - uses: ./.github/actions/setup-java
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew test --stacktrace
-      - run: ./gradlew :sdk:koverHtmlReport :sdk:koverVerify --stacktrace
+      - run: ./gradlew :cabitools-sdk-application:koverHtmlReport :cabitools-sdk-application:koverVerify --stacktrace
       - name: Upload Kover HTML report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: kover-html-report
-          path: sdk/build/reports/kover/html/
+          path: cabitools-sdk-application/build/reports/kover/html/
 
   static-analysis:
     name: Static Analysis
@@ -65,7 +65,7 @@ jobs:
         with:
           name: detekt-html-reports
           path: '*/build/reports/detekt/detekt.html'
-      - name: Check :sdk and :sdk-no-op public APIs match
+      - name: Check :cabitools-sdk-application and :cabitools-sdk-application-no-op public APIs match
         run: ./gradlew checkNoOpApi --stacktrace
       - name: Upload public API dumps
         if: failure()

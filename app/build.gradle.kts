@@ -64,10 +64,10 @@ dependencies {
     implementation(libs.okhttp)
 
     // The SDK in debug and QA builds; the no-op, with the same API, in production.
-    debugImplementation(project(":sdk"))
+    debugImplementation(project(":cabitools-sdk-application"))
     debugImplementation(libs.androidx.compose.ui.tooling)
-    "qaImplementation"(project(":sdk"))
-    releaseImplementation(project(":sdk-no-op"))
+    "qaImplementation"(project(":cabitools-sdk-application"))
+    releaseImplementation(project(":cabitools-sdk-application-no-op"))
 
     testImplementation(libs.junit)
 

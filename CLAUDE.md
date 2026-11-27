@@ -4,28 +4,33 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project state
 
-Three modules:
+Cabitools (named after *cabidela*) is an in-app debug and QA tools screen for my own apps. The SDK is split into one module per clean-architecture layer, plus a no-op and a sample:
 
-- `:sdk` (`com.android.library`, namespace `pt.tiagodiasduarte.cabitools.sdk`) is Cabitools (named after *cabidela*), an in-app debug and QA tools screen for my own apps. Its public API is the `Cabitools` object (`explicitApi()` is on): `Cabitools.open(context)` launches the internal, non-exported `CabitoolsActivity`, and `Cabitools.httpInterceptor(context) { ... }` returns the HTTP logs OkHttp interceptor, configured with `HttpLogsConfig`/`Retention`. It uses clean-architecture packages (`domain` is pure Kotlin, `data` reads PackageManager/`Build`, `presentation` holds the Compose UI and ViewModel) and manual DI in `di/SdkContainer` (no Hilt, so host apps aren't forced to adopt it). The screen renders an ordered list of sections, currently Application, Device and Logs; Logs opens the HTTP logs screens (Navigation 3), backed by a Room database. SDK resources must use the `cabitools_` prefix (`resourcePrefix`). See `sdk/README.md`.
-- `:sdk-no-op` (namespace `pt.tiagodiasduarte.cabitools.sdk.noop`) has the same public API as `:sdk` (same package and declarations) and does nothing. Host apps use it in production builds. Any public API change must be made in both modules; `./gradlew checkNoOpApi` fails when they differ.
-- `:app` (namespace and application id `pt.tiagodiasduarte.cabitools.sample`, "Cabitools Sample") is a sample host: a Compose `MainActivity` that opens Cabitools and makes HTTP calls through the interceptor. Debug and the minified `qa` build type use `:sdk`; release uses `:sdk-no-op`.
+- `:cabitools-sdk-application` (`com.android.library`, namespace `pt.tiagodiasduarte.cabitools.sdk`) is the module host apps depend on and the composition root. It holds the public API, the `Cabitools` object (`explicitApi()` is on): `Cabitools.open(context)` launches the internal, non-exported `CabitoolsActivity`, and `Cabitools.httpInterceptor(context) { ... }` returns the HTTP logs OkHttp interceptor, configured with `HttpLogsConfig`/`Retention`. It also holds the manual DI (`di/SdkContainer`, no Hilt so host apps aren't forced to adopt it), `CabitoolsActivity` and its window themes, and depends on the three layer modules with `implementation`. See `cabitools-sdk-application/README.md`.
+- `:cabitools-sdk-domain` (pure Kotlin/JVM, `org.jetbrains.kotlin.jvm`) holds models, `ContentTypes`, repository interfaces and use cases. It must never depend on Android.
+- `:cabitools-sdk-infrastructure` (namespace `…sdk.infrastructure`) implements the domain repositories: PackageManager/`Build`, the HTTP logs interceptor and capture code, and the Room store (schema exported to its `schemas/`). Its public surface is only `AppInfoRepositoryImpl`, `DeviceInfoRepositoryImpl`, `HeaderRules` and the `HttpLogs` entry point; the store, interceptor, DAO and entities are `internal`.
+- `:cabitools-sdk-presentation` (namespace `…sdk.presentation`, owns the strings and icons) holds the Compose screens, ViewModels and Navigation 3. The screen renders an ordered list of sections, currently Application, Device and Logs; Logs opens the HTTP logs screens. It gets its dependencies through `PresentationDependencies` (implemented by `SdkContainer`) and must never depend on infrastructure.
+- `:cabitools-sdk-application-no-op` (namespace `…sdk.noop`) has the same public API as `:cabitools-sdk-application` (same package and declarations) and does nothing. Host apps use it in production builds. Any public API change must be made in both modules; `./gradlew checkNoOpApi` fails when they differ.
+- `:app` (namespace and application id `pt.tiagodiasduarte.cabitools.sample`, "Cabitools Sample") is a sample host: a Compose `MainActivity` that opens Cabitools and makes HTTP calls through the interceptor. Debug and the minified `qa` build type use `:cabitools-sdk-application`; release uses `:cabitools-sdk-application-no-op`.
+
+Dependency rules: domain ← infrastructure, domain ← presentation, and application → all three. Declarations used by another module are `public` in their module; everything else stays `internal`. All Android modules use the `cabitools_` resource prefix (`resourcePrefix`). Model-to-model mapping functions live in each module's `mapper` package (for example `…sdk.presentation.mapper`), one file per source model, as `internal` extension functions.
 
 ## Commands
 
 ```bash
 ./gradlew assembleDebug                 # build debug APK
 ./gradlew installDebug                  # install on connected device/emulator
-./gradlew test                          # JVM unit tests (sdk/src/test, app/src/test), incl. Robolectric/Compose UI tests
-./gradlew connectedAndroidTest          # instrumented tests (sdk/src/androidTest, app/src/androidTest), needs a device
+./gradlew test                          # JVM unit tests of every module, incl. Robolectric/Compose UI tests
+./gradlew connectedAndroidTest          # instrumented tests (application, infrastructure and app modules), needs a device
 ./gradlew lint                          # Android lint
 ./gradlew detekt                        # static analysis (config/detekt/detekt.yml)
-./gradlew :sdk:koverHtmlReport :sdk:koverVerify   # SDK coverage report and the 90% line/branch minimum
-./gradlew checkNoOpApi                  # :sdk and :sdk-no-op must expose the same public API
+./gradlew :cabitools-sdk-application:koverHtmlReport :cabitools-sdk-application:koverVerify   # merged SDK coverage and the 90% minimum
+./gradlew checkNoOpApi                  # application module and its no-op must expose the same public API
 
 # single test class / method
-./gradlew :sdk:testDebugUnitTest --tests "pt.tiagodiasduarte.cabitools.sdk.presentation.SettingsViewModelTest"
-./gradlew :sdk:testDebugUnitTest --tests "pt.tiagodiasduarte.cabitools.sdk.domain.usecase.GetDeviceInfoUseCaseTest"
-./gradlew :sdk:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=pt.tiagodiasduarte.cabitools.sdk.CabitoolsTest
+./gradlew :cabitools-sdk-presentation:testDebugUnitTest --tests "pt.tiagodiasduarte.cabitools.sdk.presentation.SettingsViewModelTest"
+./gradlew :cabitools-sdk-domain:test --tests "pt.tiagodiasduarte.cabitools.sdk.domain.usecase.GetDeviceInfoUseCaseTest"
+./gradlew :cabitools-sdk-application:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=pt.tiagodiasduarte.cabitools.sdk.CabitoolsTest
 ```
 
 CI (`.github/workflows/ci.yml`) runs on PRs into `develop` and `main`: build, unit tests with the coverage check, lint, detekt and `checkNoOpApi`. The `🏁 Finish` job aggregates the result.

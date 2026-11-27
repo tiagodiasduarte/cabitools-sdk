@@ -24,5 +24,8 @@ dependencyResolutionManagement {
 
 rootProject.name = "cabitools-sdk"
 include(":app")
-include(":sdk")
-include(":sdk-no-op")
+include(":cabitools-sdk-domain")
+include(":cabitools-sdk-infrastructure")
+include(":cabitools-sdk-presentation")
+include(":cabitools-sdk-application")
+include(":cabitools-sdk-application-no-op")
